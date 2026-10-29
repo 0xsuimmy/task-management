@@ -1,5 +1,22 @@
 import { useState } from "react"
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { GripVerticalIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -138,6 +155,22 @@ export function OptionsDialog({
     onOpenChange(false)
   }
 
+  // アプリ全体の DndContext とは別に、この一覧だけの並べ替えを持つ
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return
+    setOptions((prev) =>
+      arrayMove(
+        prev,
+        prev.findIndex((o) => o.id === active.id),
+        prev.findIndex((o) => o.id === over.id),
+      ),
+    )
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -146,45 +179,32 @@ export function OptionsDialog({
         </DialogHeader>
         <div className="grid gap-2">
           <p className="text-xs text-muted-foreground">
+            左のつまみをドラッグすると並び順を変えられます（Status で並び替えたときもこの順）。
             間違えて作った選択肢は、正しい選択肢と同じ名前にすると1つにまとめられます。
             削除した選択肢は、使っているタスクから外れます。
           </p>
-          <div className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-2 text-xs text-muted-foreground">
+          <div className={cn(OPTION_ROW, "text-xs text-muted-foreground")}>
+            <span />
             <span>色</span>
             <span>ラベル</span>
             <span>使用</span>
             <span>完了扱い</span>
             <span />
           </div>
-          {options.map((o, i) => (
-            <div key={o.id} className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-2">
-              <ColorPicker value={o.color} onChange={(color) => patch(o.id, { color })} />
-              <div className="grid gap-0.5">
-                <Input value={o.label} onChange={(e) => patch(o.id, { label: e.target.value })} />
-                {mergeTarget(o, i) && (
-                  <span className="text-xs text-blue-600 dark:text-blue-400">
-                    保存すると上の「{o.label.trim()}」にまとめます
-                  </span>
-                )}
-              </div>
-              <span className="w-8 text-right text-xs text-muted-foreground tabular-nums">
-                {usage(o.id)}件
-              </span>
-              <div className="flex justify-center">
-                <Checkbox
-                  checked={!!o.done}
-                  onCheckedChange={(checked) => patch(o.id, { done: checked === true })}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+            <SortableContext items={options.map((o) => o.id)} strategy={verticalListSortingStrategy}>
+              {options.map((o, i) => (
+                <OptionRow
+                  key={o.id}
+                  option={o}
+                  usage={usage(o.id)}
+                  mergeInto={mergeTarget(o, i) ? o.label.trim() : null}
+                  onChange={(changes) => patch(o.id, changes)}
+                  onDelete={() => setOptions((prev) => prev.filter((p) => p.id !== o.id))}
                 />
-              </div>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setOptions((prev) => prev.filter((p) => p.id !== o.id))}
-              >
-                <Trash2Icon />
-              </Button>
-            </div>
-          ))}
+              ))}
+            </SortableContext>
+          </DndContext>
           <Button
             variant="outline"
             size="sm"
@@ -209,6 +229,64 @@ export function OptionsDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+const OPTION_ROW = "grid grid-cols-[auto_auto_1fr_auto_auto_auto] items-center gap-2"
+
+function OptionRow({
+  option,
+  usage,
+  mergeInto,
+  onChange,
+  onDelete,
+}: {
+  option: SelectOption
+  usage: number
+  /** 保存するとまとめられる先のラベル */
+  mergeInto: string | null
+  onChange: (changes: Partial<SelectOption>) => void
+  onDelete: () => void
+}) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
+    useSortable({ id: option.id })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(OPTION_ROW, "rounded-md bg-popover", isDragging && "relative z-10 shadow-md")}
+      // 縦方向にだけ動かす
+      style={{ transform: CSS.Translate.toString(transform && { ...transform, x: 0 }), transition }}
+    >
+      <button
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+        title="ドラッグして並び順を変更"
+        className="cursor-grab touch-none rounded p-0.5 text-muted-foreground hover:bg-muted active:cursor-grabbing"
+      >
+        <GripVerticalIcon className="size-4" />
+      </button>
+      <ColorPicker value={option.color} onChange={(color) => onChange({ color })} />
+      <div className="grid gap-0.5">
+        <Input value={option.label} onChange={(e) => onChange({ label: e.target.value })} />
+        {mergeInto && (
+          <span className="text-xs text-blue-600 dark:text-blue-400">
+            保存すると上の「{mergeInto}」にまとめます
+          </span>
+        )}
+      </div>
+      <span className="w-8 text-right text-xs text-muted-foreground tabular-nums">{usage}件</span>
+      <div className="flex justify-center">
+        <Checkbox
+          checked={!!option.done}
+          onCheckedChange={(checked) => onChange({ done: checked === true })}
+        />
+      </div>
+      <Button variant="ghost" size="icon-sm" onClick={onDelete}>
+        <Trash2Icon />
+      </Button>
+    </div>
   )
 }
 
