@@ -212,6 +212,17 @@ export function OptionsDialog({
   )
 }
 
+const COLOR_LABEL: Record<OptionColor, string> = {
+  gray: "グレー",
+  red: "赤",
+  orange: "オレンジ",
+  yellow: "黄",
+  green: "緑",
+  blue: "青",
+  purple: "紫",
+  pink: "ピンク",
+}
+
 function ColorPicker({
   value,
   onChange,
@@ -224,11 +235,12 @@ function ColorPicker({
       <SelectTrigger size="sm" className="w-14">
         <span className={cn("size-3 rounded-full", optionDotClass[value])} />
       </SelectTrigger>
-      <SelectContent>
+      {/* トリガーに SelectValue を置いていないので、既定の item-aligned だと位置を計算できず画面外に出る */}
+      <SelectContent position="popper" align="start">
         {OPTION_COLORS.map((c) => (
           <SelectItem key={c} value={c}>
             <span className={cn("size-3 rounded-full", optionDotClass[c])} />
-            {c}
+            {COLOR_LABEL[c]}
           </SelectItem>
         ))}
       </SelectContent>
