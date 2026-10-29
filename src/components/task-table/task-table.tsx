@@ -26,8 +26,10 @@ import {
   addTask,
   deleteColumn,
   deleteTask,
+  defaultColumnWidth,
   ensureOption,
   newId,
+  updateColumn,
   updateTaskTitle,
   updateTaskValue,
   type Column,
@@ -43,9 +45,12 @@ import { FilterChips, FilterMenu, SortMenu } from "./table-toolbar"
 import {
   activeFilters,
   compareTasks,
+  DEFAULT_TITLE_WIDTH,
   EMPTY,
   loadView,
   matchesFilters,
+  MAX_COLUMN_WIDTH,
+  MIN_COLUMN_WIDTH,
   saveView,
   TITLE,
   type Sort,
@@ -95,9 +100,16 @@ export function TaskTable() {
   const [search, setSearch] = useState("")
   // 完了を隠す・並び替え・フィルタは次に開いたときも残す
   const [view, setView] = useState(loadView)
-  const { hideDone, sort, filters } = view
+  const { hideDone, sorts, filters } = view
   useEffect(() => saveView(view), [view])
-  const setSort = (sort: Sort | null) => setView((v) => ({ ...v, sort }))
+  const setSorts = (sorts: Sort[]) => setView((v) => ({ ...v, sorts }))
+  // 列見出しからの並び替え：その列の条件があれば向きだけ変え、無ければ最後に足す
+  const sortByColumn = (col: string, dir: 1 | -1) =>
+    setSorts(
+      sorts.some((s) => s.col === col)
+        ? sorts.map((s) => (s.col === col ? { col, dir } : s))
+        : [...sorts, { col, dir }],
+    )
   const filterList = useMemo(() => activeFilters(filters, columns), [filters, columns])
   const [active, setActive] = useState<Active | null>(null)
   const [editing, setEditing] = useState<Editing | null>(null)
@@ -105,6 +117,19 @@ export function TaskTable() {
   const [optionsColumn, setOptionsColumn] = useState<Column | null>(null)
   // 保存が終わる前から表示しておく新規行
   const [pending, setPending] = useState<Task | null>(null)
+  // ドラッグ中の列幅。離すまで保存せず表示だけ変える
+  const [resizing, setResizing] = useState<{ col: string; width: number } | null>(null)
+  const widthOf = (col: string) =>
+    resizing?.col === col
+      ? resizing.width
+      : col === TITLE
+        ? view.titleWidth
+        : (columns.find((c) => c.id === col)?.width ?? 160)
+  const saveWidth = (col: string, width: number) => {
+    setResizing(null)
+    if (col === TITLE) setView((v) => ({ ...v, titleWidth: width }))
+    else void updateColumn(col, { width })
+  }
 
   const colKeys = useMemo(() => [TITLE, ...columns.map((c) => c.id)], [columns])
 
@@ -118,9 +143,9 @@ export function TaskTable() {
     }
     if (hideDone) list = list.filter((t) => !isTaskDone(t, columns))
     if (filterList.length) list = list.filter((t) => matchesFilters(t, filterList))
-    if (sort) list = [...list].sort((a, b) => compareTasks(a, b, sort, columns))
+    if (sorts.length) list = [...list].sort((a, b) => compareTasks(a, b, sorts, columns))
     return list
-  }, [tasks, pending, columns, colKeys, search, hideDone, sort, filterList])
+  }, [tasks, pending, columns, colKeys, search, hideDone, sorts, filterList])
 
   const navigate = (from: Active, move: Move) => {
     const r = visible.findIndex((t) => t.id === from.row)
@@ -185,7 +210,10 @@ export function TaskTable() {
     }
   }
 
-  const sortedBy = (col: string) => (sort?.col === col ? sort.dir : null)
+  const sortedBy = (col: string) => {
+    const index = sorts.findIndex((s) => s.col === col)
+    return index === -1 ? null : { dir: sorts[index].dir, rank: sorts.length > 1 ? index + 1 : null }
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -204,7 +232,7 @@ export function TaskTable() {
           filters={filters}
           onChange={(filters) => setView((v) => ({ ...v, filters }))}
         />
-        <SortMenu columns={columns} sort={sort} onChange={setSort} />
+        <SortMenu columns={columns} sorts={sorts} onChange={setSorts} />
         <div className="flex items-center gap-2">
           <Switch
             id="hide-done"
@@ -230,32 +258,41 @@ export function TaskTable() {
         <table className="w-max min-w-full table-fixed border-separate border-spacing-0 text-sm">
           <colgroup>
             <col className="w-9" />
-            <col className="w-[320px]" />
+            <col style={{ width: widthOf(TITLE) }} />
             {columns.map((c) => (
-              <col key={c.id} style={{ width: c.width }} />
+              <col key={c.id} style={{ width: widthOf(c.id) }} />
             ))}
-            <col className="w-10" />
+            {/* 幅を指定しない最後の列が余白を吸収し、他の列は設定した幅のまま表示する */}
+            <col className="min-w-10" />
           </colgroup>
           <thead className="sticky top-0 z-20 bg-muted/80 backdrop-blur">
             <tr className="text-left text-xs text-muted-foreground">
               <th className="border-b" />
               <HeaderCell
                 label="タスク名"
-                sortDir={sortedBy(TITLE)}
-                onSort={(dir) => setSort({ col: TITLE, dir })}
+                sorted={sortedBy(TITLE)}
+                onSort={(dir) => sortByColumn(TITLE, dir)}
+                width={widthOf(TITLE)}
+                onResize={(width) => setResizing({ col: TITLE, width })}
+                onResizeEnd={(width) => saveWidth(TITLE, width)}
+                onResetWidth={() => saveWidth(TITLE, DEFAULT_TITLE_WIDTH)}
               />
               {columns.map((c) => (
                 <HeaderCell
                   key={c.id}
                   label={c.name}
-                  sortDir={sortedBy(c.id)}
-                  onSort={(dir) => setSort({ col: c.id, dir })}
+                  sorted={sortedBy(c.id)}
+                  onSort={(dir) => sortByColumn(c.id, dir)}
+                  width={widthOf(c.id)}
+                  onResize={(width) => setResizing({ col: c.id, width })}
+                  onResizeEnd={(width) => saveWidth(c.id, width)}
+                  onResetWidth={() => saveWidth(c.id, defaultColumnWidth(c.type))}
                   onRename={() => setColumnDialog({ column: c })}
                   onEditOptions={c.type === "select" ? () => setOptionsColumn(c) : undefined}
                   onDelete={c.system ? undefined : () => void deleteColumn(c.id)}
                 />
               ))}
-              <th className="border-b px-1">
+              <th className="border-b px-1 text-left">
                 <Button
                   variant="ghost"
                   size="icon-xs"
@@ -396,26 +433,61 @@ function CellDisplay({ task, column, done }: { task: Task; column?: Column; done
 
 function HeaderCell({
   label,
-  sortDir,
+  sorted,
   onSort,
+  width,
+  onResize,
+  onResizeEnd,
+  onResetWidth,
   onRename,
   onEditOptions,
   onDelete,
 }: {
   label: string
-  sortDir: 1 | -1 | null
+  /** rank は並び替え条件が複数あるときの優先順位 */
+  sorted: { dir: 1 | -1; rank: number | null } | null
   onSort: (dir: 1 | -1) => void
+  width: number
+  onResize: (width: number) => void
+  onResizeEnd: (width: number) => void
+  onResetWidth: () => void
   onRename?: () => void
   onEditOptions?: () => void
   onDelete?: () => void
 }) {
+  const onResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const handle = e.currentTarget
+    const startX = e.clientX
+    let next = width
+    handle.setPointerCapture(e.pointerId)
+    const onMove = (ev: PointerEvent) => {
+      next = Math.round(
+        Math.min(Math.max(width + ev.clientX - startX, MIN_COLUMN_WIDTH), MAX_COLUMN_WIDTH),
+      )
+      onResize(next)
+    }
+    const onUp = () => {
+      handle.removeEventListener("pointermove", onMove)
+      handle.removeEventListener("pointerup", onUp)
+      onResizeEnd(next)
+    }
+    handle.addEventListener("pointermove", onMove)
+    handle.addEventListener("pointerup", onUp)
+  }
+
   return (
-    <th className="border-b border-l p-0 font-medium">
+    <th className="relative border-b border-l p-0 font-medium">
       <DropdownMenu>
         <DropdownMenuTrigger className="flex h-8 w-full items-center gap-1 px-2 text-left hover:bg-muted">
           <span className="truncate">{label}</span>
-          {sortDir === 1 && <ArrowUpIcon className="size-3" />}
-          {sortDir === -1 && <ArrowDownIcon className="size-3" />}
+          {sorted && (
+            <span className="flex shrink-0 items-center text-foreground">
+              {sorted.dir === 1 ? <ArrowUpIcon className="size-3" /> : <ArrowDownIcon className="size-3" />}
+              {sorted.rank && <span className="text-[10px] tabular-nums">{sorted.rank}</span>}
+            </span>
+          )}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           <DropdownMenuItem onSelect={() => onSort(1)}>
@@ -450,6 +522,12 @@ function HeaderCell({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      <div
+        title="ドラッグで幅を変更（ダブルクリックで標準の幅に戻す）"
+        className="absolute top-0 -right-1 z-10 h-full w-2 cursor-col-resize after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 hover:after:bg-primary/60"
+        onPointerDown={onResizeStart}
+        onDoubleClick={onResetWidth}
+      />
     </th>
   )
 }

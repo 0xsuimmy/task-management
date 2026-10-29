@@ -1,4 +1,12 @@
-import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, FilterIcon, XIcon } from "lucide-react"
+import {
+  ArrowDownIcon,
+  ArrowUpDownIcon,
+  ArrowUpIcon,
+  ChevronUpIcon,
+  FilterIcon,
+  PlusIcon,
+  XIcon,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -6,14 +14,20 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { findOption } from "@/hooks/use-data"
 import type { Column } from "@/lib/db"
 import { OptionBadge } from "./option-badge"
@@ -94,56 +108,126 @@ export function FilterMenu({
 
 export function SortMenu({
   columns,
-  sort,
+  sorts,
   onChange,
 }: {
   columns: Column[]
-  sort: Sort | null
-  onChange: (sort: Sort | null) => void
+  sorts: Sort[]
+  onChange: (sorts: Sort[]) => void
 }) {
   const fields = [
     { id: TITLE, name: "タスク名" },
     ...columns.map((c) => ({ id: c.id, name: c.name })),
     { id: CREATED, name: "作成日" },
   ]
-  const current = fields.find((f) => f.id === sort?.col)
+  const nameOf = (id: string) => fields.find((f) => f.id === id)?.name
+  // 削除済みの列の条件は表示しない
+  const rules = sorts.filter((s) => nameOf(s.col))
+  const unused = fields.filter((f) => !rules.some((s) => s.col === f.id))
+
+  const update = (index: number, changes: Partial<Sort>) =>
+    onChange(rules.map((s, i) => (i === index ? { ...s, ...changes } : s)))
+  const moveUp = (index: number) => {
+    const next = [...rules]
+    ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
+    onChange(next)
+  }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant={sort ? "secondary" : "ghost"} size="sm">
-          {sort ? sort.dir === 1 ? <ArrowUpIcon /> : <ArrowDownIcon /> : <ArrowUpDownIcon />}
-          {current ? current.name : "並び替え"}
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant={rules.length ? "secondary" : "ghost"} size="sm">
+          {rules.length === 1 ? (
+            rules[0].dir === 1 ? (
+              <ArrowUpIcon />
+            ) : (
+              <ArrowDownIcon />
+            )
+          ) : (
+            <ArrowUpDownIcon />
+          )}
+          {rules.length === 0
+            ? "並び替え"
+            : rules.length === 1
+              ? nameOf(rules[0].col)
+              : `並び替え ${rules.length}`}
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-48">
-        <DropdownMenuLabel className="text-xs text-muted-foreground">並び替える項目</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={sort?.col ?? ""}
-          onValueChange={(col) => onChange({ col, dir: sort?.dir ?? 1 })}
-        >
-          {fields.map((f) => (
-            <DropdownMenuRadioItem key={f.id} value={f.id}>
-              {f.name}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-        {sort && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuRadioGroup
-              value={String(sort.dir)}
-              onValueChange={(dir) => onChange({ ...sort, dir: dir === "1" ? 1 : -1 })}
-            >
-              <DropdownMenuRadioItem value="1">昇順</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="-1">降順</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => onChange(null)}>並び替えを解除（作成順）</DropdownMenuItem>
-          </>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[22rem] gap-2">
+        {rules.length === 0 ? (
+          <p className="text-sm text-muted-foreground">並び替えの条件はありません（作成順）</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            上の条件が同じタスクは、下の条件で並び替えます
+          </p>
         )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        {rules.map((rule, i) => (
+          // 項目を変えても行を作り直さないよう、位置をキーにする
+          <div key={i} className="flex items-center gap-1.5">
+            <span className="w-4 text-center text-xs text-muted-foreground tabular-nums">{i + 1}</span>
+            <Select value={rule.col} onValueChange={(col) => update(i, { col })}>
+              <SelectTrigger size="sm" className="min-w-0 flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                {fields
+                  .filter((f) => f.id === rule.col || unused.includes(f))
+                  .map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={String(rule.dir)}
+              onValueChange={(dir) => update(i, { dir: dir === "1" ? 1 : -1 })}
+            >
+              <SelectTrigger size="sm" className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                <SelectItem value="1">昇順</SelectItem>
+                <SelectItem value="-1">降順</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="優先順位を上げる"
+              disabled={i === 0}
+              onClick={() => moveUp(i)}
+            >
+              <ChevronUpIcon />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="この条件を外す"
+              onClick={() => onChange(rules.filter((_, j) => j !== i))}
+            >
+              <XIcon />
+            </Button>
+          </div>
+        ))}
+        <div className="flex items-center justify-between pt-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={unused.length === 0}
+            onClick={() => onChange([...rules, { col: unused[0].id, dir: 1 }])}
+          >
+            <PlusIcon />
+            並び替えを追加
+          </Button>
+          {rules.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => onChange([])}>
+              すべて解除
+            </Button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 

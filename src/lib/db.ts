@@ -172,6 +172,9 @@ export async function deleteTask(id: string) {
 
 // ---- columns ----
 
+export const defaultColumnWidth = (type: ColumnType) =>
+  type === "number" || type === "duration" ? 90 : 160
+
 export async function addColumn(name: string, type: ColumnType) {
   const last = await db.columns.orderBy("order").last()
   const column: Column = {
@@ -180,7 +183,7 @@ export async function addColumn(name: string, type: ColumnType) {
     type,
     options: type === "select" ? [] : undefined,
     order: (last?.order ?? 0) + 1,
-    width: type === "number" || type === "duration" ? 90 : 160,
+    width: defaultColumnWidth(type),
   }
   await db.columns.add(column)
   return column
