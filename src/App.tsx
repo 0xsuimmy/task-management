@@ -11,6 +11,7 @@ import {
 import { CalendarDaysIcon, GripVerticalIcon, TableIcon } from "lucide-react"
 import { CalendarView } from "@/components/calendar/calendar-view"
 import { TaskTray } from "@/components/calendar/task-tray"
+import { DataMenu } from "@/components/data-menu"
 import { MiniPomodoro } from "@/components/pomodoro/mini-pomodoro"
 import { PomodoroCard } from "@/components/pomodoro/pomodoro-card"
 import { TaskTable } from "@/components/task-table/task-table"
@@ -76,11 +77,10 @@ export default function App() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          {screen === "list" && (
-            <div className="ml-auto">
-              <MiniPomodoro />
-            </div>
-          )}
+          <div className="ml-auto flex items-center gap-2">
+            {screen === "list" && <MiniPomodoro />}
+            <DataMenu />
+          </div>
         </header>
         <main className="flex min-h-0 flex-1">
           {screen === "calendar" ? (
