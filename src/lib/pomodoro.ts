@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react"
+import { isTauri } from "@tauri-apps/api/core"
 import { recordPomodoro } from "@/lib/db"
 
 export type PomodoroMode = "work" | "short" | "long"
@@ -91,7 +92,11 @@ function set(patch: Partial<PomodoroState>, persist = true) {
   listeners.forEach((l) => l())
 }
 
-function subscribe(listener: () => void) {
+export function getPomodoroState() {
+  return state
+}
+
+export function subscribe(listener: () => void) {
   listeners.add(listener)
   return () => listeners.delete(listener)
 }
@@ -108,7 +113,8 @@ export function remainingMs(s: PomodoroState) {
 
 export const pomodoro = {
   start(taskId?: string | null) {
-    void Notification?.requestPermission?.()
+    // デスクトップアプリではメニューバー側（Rust）が通知を出す
+    if (!isTauri()) void Notification?.requestPermission?.()
     const now = Date.now()
     const changingTask = taskId !== undefined && taskId !== state.taskId
     // 別タスクで作業を始める場合は作業区間をやり直す
@@ -207,6 +213,7 @@ function complete() {
 function notify(finished: PomodoroMode) {
   beep()
   const body = finished === "work" ? "お疲れさまです。休憩しましょう。" : "休憩終了。次の作業を始めましょう。"
+  if (isTauri()) return
   try {
     if (Notification.permission === "granted") {
       new Notification(`${MODE_LABEL[finished]}が終わりました`, { body })
