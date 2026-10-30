@@ -62,3 +62,7 @@ pnpm tauri build  # src-tauri/target/release/bundle/macos/Task Management.app �
 - shadcn/ui（Tailwind CSS v4）
 - Dexie（IndexedDB）
 - dnd-kit
+
+## ライセンス
+
+[MIT](LICENSE)
