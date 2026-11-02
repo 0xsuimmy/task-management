@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/command"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import type { CellValue, Column, ColumnType } from "@/lib/db"
+import { isImeKey } from "@/lib/ime"
 import { cn } from "@/lib/utils"
 import { OptionBadge } from "./option-badge"
 
@@ -115,7 +116,7 @@ export function CellInput({
         onStartEdit()
       }}
       onKeyDown={(e) => {
-        if (e.nativeEvent.isComposing) return
+        if (isImeKey(e)) return
         if (textEditing) {
           if (e.key === "Enter") {
             e.preventDefault()

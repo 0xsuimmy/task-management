@@ -49,6 +49,7 @@ import {
   type OptionColor,
   type SelectOption,
 } from "@/lib/db"
+import { isImeKey } from "@/lib/ime"
 import { cn } from "@/lib/utils"
 
 const TYPE_LABEL: Record<ColumnType, string> = {
@@ -99,6 +100,9 @@ export function ColumnDialog({
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && isImeKey(e)) e.preventDefault()
+              }}
             />
           </div>
           {!column && (

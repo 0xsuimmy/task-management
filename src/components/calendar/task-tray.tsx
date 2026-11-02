@@ -5,6 +5,7 @@ import { CircleIcon, GripVerticalIcon } from "lucide-react"
 import { OptionBadge } from "@/components/task-table/option-badge"
 import { findOption, isTaskDone, useAllBlocks, useColumns, useTasks } from "@/hooks/use-data"
 import { addTask, setTaskDone, STATUS_COLUMN_ID, type Column, type Task, type TimeBlock } from "@/lib/db"
+import { isImeKey } from "@/lib/ime"
 import { formatMinutes } from "./layout"
 
 /** カレンダー横のタスク一覧。ここからカレンダーへドラッグして予定にする */
@@ -47,7 +48,7 @@ export function TaskTray() {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && e.nativeEvent.isComposing) e.preventDefault()
+            if (e.key === "Enter" && isImeKey(e)) e.preventDefault()
           }}
         />
       </form>

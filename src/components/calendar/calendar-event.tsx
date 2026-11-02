@@ -20,6 +20,7 @@ import {
   type Task,
   type TimeBlock,
 } from "@/lib/db"
+import { isImeKey } from "@/lib/ime"
 import { pomodoro, usePomodoro } from "@/lib/pomodoro"
 import { cn } from "@/lib/utils"
 import { clamp, DAY_MIN, formatMinutes, PX_PER_MIN, snap, SNAP } from "./layout"
@@ -163,7 +164,7 @@ function EventDetail({
         onChange={(e) => setTitle(e.target.value)}
         onBlur={saveTitle}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+          if (e.key === "Enter" && !isImeKey(e)) {
             saveTitle()
             onClose()
           }
