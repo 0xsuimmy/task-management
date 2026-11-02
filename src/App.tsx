@@ -8,23 +8,25 @@ import {
   useSensors,
   type DragStartEvent,
 } from "@dnd-kit/core"
-import { CalendarDaysIcon, GripVerticalIcon, TableIcon } from "lucide-react"
+import { CalendarDaysIcon, ChartColumnIcon, GripVerticalIcon, TableIcon } from "lucide-react"
 import { CalendarView } from "@/components/calendar/calendar-view"
 import { TaskTray } from "@/components/calendar/task-tray"
 import { DataMenu } from "@/components/data-menu"
 import { MiniPomodoro } from "@/components/pomodoro/mini-pomodoro"
 import { PomodoroCard } from "@/components/pomodoro/pomodoro-card"
+import { StatsView } from "@/components/stats/stats-view"
 import { TaskTable } from "@/components/task-table/task-table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useTasks } from "@/hooks/use-data"
 
-type Screen = "calendar" | "list"
+type Screen = "calendar" | "list" | "stats"
 
 const SCREEN_KEY = "screen"
 
 function loadScreen(): Screen {
   try {
-    return localStorage.getItem(SCREEN_KEY) === "list" ? "list" : "calendar"
+    const saved = localStorage.getItem(SCREEN_KEY)
+    return saved === "list" || saved === "stats" ? saved : "calendar"
   } catch {
     return "calendar"
   }
@@ -75,10 +77,14 @@ export default function App() {
                 <TableIcon />
                 一覧
               </TabsTrigger>
+              <TabsTrigger value="stats">
+                <ChartColumnIcon />
+                記録
+              </TabsTrigger>
             </TabsList>
           </Tabs>
           <div className="ml-auto flex items-center gap-2">
-            {screen === "list" && <MiniPomodoro />}
+            {screen !== "calendar" && <MiniPomodoro />}
             <DataMenu />
           </div>
         </header>
@@ -95,7 +101,7 @@ export default function App() {
             </>
           ) : (
             <section className="min-w-0 flex-1">
-              <TaskTable />
+              {screen === "list" ? <TaskTable /> : <StatsView />}
             </section>
           )}
         </main>

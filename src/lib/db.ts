@@ -46,9 +46,17 @@ export interface TimeBlock {
 export interface PomodoroSession {
   id: string
   taskId: string | null
+  /** 記録した時点のタスク名。タスクを消しても履歴に名前を残す */
+  taskTitle?: string
   startedAt: number
   endedAt: number
+  /** 作業時間（分）。一時停止していた時間は含まない */
+  minutes?: number
 }
+
+/** 作業時間（分）。minutes が無い古い記録は開始〜終了から求める */
+export const sessionMinutes = (p: PomodoroSession) =>
+  p.minutes ?? Math.max(1, Math.round((p.endedAt - p.startedAt) / 60_000))
 
 export const OPTION_COLORS = [
   "gray",
@@ -259,6 +267,11 @@ export async function deleteTimeBlock(id: string) {
 
 // ---- pomodoros ----
 
-export async function recordPomodoro(session: Omit<PomodoroSession, "id">) {
-  await db.pomodoros.add({ id: newId(), ...session })
+export async function recordPomodoro(session: Omit<PomodoroSession, "id" | "taskTitle">) {
+  const task = session.taskId ? await db.tasks.get(session.taskId) : undefined
+  await db.pomodoros.add({ id: newId(), ...session, taskTitle: task?.title || undefined })
+}
+
+export async function deletePomodoro(id: string) {
+  await db.pomodoros.delete(id)
 }

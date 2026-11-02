@@ -204,6 +204,7 @@ function complete() {
       taskId: state.taskId,
       startedAt: state.segmentStartedAt ?? Date.now() - durationMs("work", state.settings),
       endedAt: Date.now(),
+      minutes: state.settings.work,
     })
   }
   notify(finished)
