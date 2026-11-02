@@ -117,6 +117,8 @@ export function TaskTable() {
   const [optionsColumn, setOptionsColumn] = useState<Column | null>(null)
   // 保存が終わる前から表示しておく新規行
   const [pending, setPending] = useState<Task | null>(null)
+  // 保存できたら仮の行は要らない。残すと削除しても仮の行が出続ける
+  if (pending && tasks.some((t) => t.id === pending.id)) setPending(null)
   // ドラッグ中の列幅。離すまで保存せず表示だけ変える
   const [resizing, setResizing] = useState<{ col: string; width: number } | null>(null)
   const widthOf = (col: string) =>
