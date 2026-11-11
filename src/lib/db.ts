@@ -54,6 +54,13 @@ export interface PomodoroSession {
   minutes?: number
 }
 
+export interface DiaryEntry {
+  /** yyyy-MM-dd。1日1件 */
+  date: string
+  body: string
+  updatedAt: number
+}
+
 /** 作業時間（分）。minutes が無い古い記録は開始〜終了から求める */
 export const sessionMinutes = (p: PomodoroSession) =>
   p.minutes ?? Math.max(1, Math.round((p.endedAt - p.startedAt) / 60_000))
@@ -82,6 +89,7 @@ class TaskDB extends Dexie {
   columns!: EntityTable<Column, "id">
   timeBlocks!: EntityTable<TimeBlock, "id">
   pomodoros!: EntityTable<PomodoroSession, "id">
+  diaries!: EntityTable<DiaryEntry, "date">
 
   constructor() {
     super("task-management")
@@ -108,6 +116,7 @@ class TaskDB extends Dexie {
           if (typeof v === "number") t.values[ESTIMATE_COLUMN_ID] = v * 30
         })
     })
+    this.version(3).stores({ diaries: "date" })
     this.on("populate", (tx) => {
       tx.table("columns").bulkAdd(defaultColumns())
     })
@@ -274,4 +283,13 @@ export async function recordPomodoro(session: Omit<PomodoroSession, "id" | "task
 
 export async function deletePomodoro(id: string) {
   await db.pomodoros.delete(id)
+}
+
+// ---- diaries ----
+
+/** その日の日記を保存する。空にしたら消す */
+export async function saveDiary(date: string, body: string) {
+  const trimmed = body.trimEnd()
+  if (!trimmed.trim()) await db.diaries.delete(date)
+  else await db.diaries.put({ date, body: trimmed, updatedAt: Date.now() })
 }

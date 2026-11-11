@@ -1,5 +1,5 @@
 import { format } from "date-fns"
-import { db, type Column, type PomodoroSession, type Task, type TimeBlock } from "@/lib/db"
+import { db, type Column, type DiaryEntry, type PomodoroSession, type Task, type TimeBlock } from "@/lib/db"
 import { getPomodoroState, pomodoro, type PomodoroSettings } from "@/lib/pomodoro"
 
 const TABLE_VIEW_KEY = "task-table-view"
@@ -12,6 +12,8 @@ export interface Backup {
   columns: Column[]
   timeBlocks: TimeBlock[]
   pomodoros: PomodoroSession[]
+  /** 日記を足す前に書き出したファイルには無い */
+  diaries?: DiaryEntry[]
   /** 一覧の並び替え・フィルタ・列幅など（localStorage の内容） */
   tableView: unknown
   pomodoroSettings: PomodoroSettings
@@ -32,6 +34,7 @@ export async function createBackup(): Promise<Backup> {
     columns: await db.columns.toArray(),
     timeBlocks: await db.timeBlocks.toArray(),
     pomodoros: await db.pomodoros.toArray(),
+    diaries: await db.diaries.toArray(),
     tableView,
     pomodoroSettings: getPomodoroState().settings,
   }
@@ -57,17 +60,22 @@ export function parseBackup(text: string): Backup {
   for (const key of ["tasks", "columns", "timeBlocks", "pomodoros"] as const) {
     if (!Array.isArray(data[key])) throw new Error(`ファイルの「${key}」が壊れています`)
   }
+  if (data.diaries !== undefined && !Array.isArray(data.diaries)) {
+    throw new Error("ファイルの「diaries」が壊れています")
+  }
   return data as Backup
 }
 
 /** 今のデータをすべて消して、バックアップの内容に置き換える */
 export async function restoreBackup(backup: Backup) {
-  await db.transaction("rw", [db.tasks, db.columns, db.timeBlocks, db.pomodoros], async () => {
-    await Promise.all([db.tasks.clear(), db.columns.clear(), db.timeBlocks.clear(), db.pomodoros.clear()])
+  const tables = [db.tasks, db.columns, db.timeBlocks, db.pomodoros, db.diaries]
+  await db.transaction("rw", tables, async () => {
+    await Promise.all(tables.map((t) => t.clear()))
     await db.tasks.bulkAdd(backup.tasks)
     await db.columns.bulkAdd(backup.columns)
     await db.timeBlocks.bulkAdd(backup.timeBlocks)
     await db.pomodoros.bulkAdd(backup.pomodoros)
+    await db.diaries.bulkAdd(backup.diaries ?? [])
   })
   try {
     if (backup.tableView) localStorage.setItem(TABLE_VIEW_KEY, JSON.stringify(backup.tableView))

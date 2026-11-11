@@ -8,10 +8,11 @@ import {
   useSensors,
   type DragStartEvent,
 } from "@dnd-kit/core"
-import { CalendarDaysIcon, ChartColumnIcon, GripVerticalIcon, TableIcon } from "lucide-react"
+import { BookOpenIcon, CalendarDaysIcon, ChartColumnIcon, GripVerticalIcon, TableIcon } from "lucide-react"
 import { CalendarView } from "@/components/calendar/calendar-view"
 import { TaskTray } from "@/components/calendar/task-tray"
 import { DataMenu } from "@/components/data-menu"
+import { DiaryView } from "@/components/diary/diary-view"
 import { MiniPomodoro } from "@/components/pomodoro/mini-pomodoro"
 import { PomodoroCard } from "@/components/pomodoro/pomodoro-card"
 import { StatsView } from "@/components/stats/stats-view"
@@ -19,14 +20,14 @@ import { TaskTable } from "@/components/task-table/task-table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useTasks } from "@/hooks/use-data"
 
-type Screen = "calendar" | "list" | "stats"
+type Screen = "calendar" | "list" | "stats" | "diary"
 
 const SCREEN_KEY = "screen"
 
 function loadScreen(): Screen {
   try {
     const saved = localStorage.getItem(SCREEN_KEY)
-    return saved === "list" || saved === "stats" ? saved : "calendar"
+    return saved === "list" || saved === "stats" || saved === "diary" ? saved : "calendar"
   } catch {
     return "calendar"
   }
@@ -81,6 +82,10 @@ export default function App() {
                 <ChartColumnIcon />
                 記録
               </TabsTrigger>
+              <TabsTrigger value="diary">
+                <BookOpenIcon />
+                日記
+              </TabsTrigger>
             </TabsList>
           </Tabs>
           <div className="ml-auto flex items-center gap-2">
@@ -101,7 +106,13 @@ export default function App() {
             </>
           ) : (
             <section className="min-w-0 flex-1">
-              {screen === "list" ? <TaskTable /> : <StatsView />}
+              {screen === "list" ? (
+                <TaskTable />
+              ) : screen === "stats" ? (
+                <StatsView />
+              ) : (
+                <DiaryView />
+              )}
             </section>
           )}
         </main>
